@@ -1,6 +1,6 @@
 import gym
 import tensorflow as tf
-import numpy as numpy
+import numpy as np
 import random
 from collections import deque
 
@@ -23,17 +23,17 @@ class DQN():
 		self.action_dim = env.action_space.n
 
 		self.create_Q_network()
-		self.creat_training_method()
+		self.create_training_method()
 
 		self.session = tf.InteractiveSession()
-		self.session.run(tf..initialize_all_variables())
+		self.session.run(tf.initialize_all_variables())
 
 		#loading networks
 		self.saver = tf.train.Saver()
 		checkpoint = tf.train.get_checkpoint_state("saved_networks")
 		if checkpoint and checkpoint.model_checkpoint_path:
 			self.saver.restore(self.session, checkpoint.model_checkpoint_path)
-			print "Successfully loaded", model_checkpoint_path
+			print "Successfully loaded", checkpoint.model_checkpoint_path
 		else:
 			print "Can't find saved network weights"
 		self.summary_writer =  tf.train.SummaryWriter('log', graph=self.session.graph)
@@ -59,12 +59,13 @@ class DQN():
 		self.cost = tf.reduce_mean(tf.square(self.y_input - Q_action))
 		# summary
 		tf.scalar_summary("loss", self.cost)
+		self.merged_summary = tf.merge_all_summaries()
 		self.optimizer = tf.train.AdamOptimizer(0.0001).minimize(self.cost)
 
 	def perceive(self, state, action, reward, next_state, done):
 		one_hot_action = np.zeros(self.action_dim)
 		one_hot_action[action] = 1
-		self.replay_buffer.append(state, one_hot_action, reward, next_state, done)
+		self.replay_buffer.append((state, one_hot_action, reward, next_state, done))
 		if len(self.replay_buffer) > Replay_size:
 			self.replay_buffer.popleft()
 		if len(self.replay_buffer) > Batch_size:
@@ -73,7 +74,7 @@ class DQN():
 	def train_Q_network(self):
 		self.time_step += 1
 		# Step 1: obtain random minibatch from replay memory
-		minbatch = random.sample(self.replay_buffer, Batch_size)
+		minibatch = random.sample(self.replay_buffer, Batch_size)
 		state_batch = [data[0] for data in minibatch]
 		action_batch = [data[1] for data in minibatch]
 		reward_batch = [data[2] for data in minibatch]
@@ -94,7 +95,7 @@ class DQN():
 			self.action_input:action_batch,
 			self.state_input:state_batch
 			})
-		summary_str = self.session.run(merged_summary_op, feed_dict={
+		summary_str = self.session.run(self.merged_summary, feed_dict={
 			self.y_input:y_batch,
 			self.action_input:action_batch,
 			self.state_input:state_batch
@@ -141,7 +142,7 @@ def main():
 	env = gym.make(ENV_NAME)
 	agent = DQN(env)
 
-	for episode in xrange(EPISODE):
+	for episode in xrange(Episode):
 		# initialize task
 		state = env.reset()
 		# Train 
@@ -166,21 +167,7 @@ def main():
 						break
 			ave_reward = total_reward/TEST
 			print 'episode: ',episode,'Evaluation Average Reward:',ave_reward
-			if ave_reward >= 200:
-				break
 
-	# save results for uploading
-	env.monitor.start('gym_results/CartPole-v0-experiment-1',force = True)
-	for i in xrange(100):
-		state = env.reset()
-		for j in xrange(200):
-			env.render()
-			action = agent.action(state) # direct action for test
-			state,reward,done,_ = env.step(action)
-			total_reward += reward
-			if done:
-				break
-	env.monitor.close()
 
 if __name__ == '__main__':
 	main()
